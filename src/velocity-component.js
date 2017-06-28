@@ -37,13 +37,6 @@ Methods:
    occurs).
 */
 
-var _ = {
-  forEach: require('lodash/collection/forEach'),
-  isEqual: require('lodash/lang/isEqual'),
-  keys: require('lodash/object/keys'),
-  omit: require('lodash/object/omit'),
-};
-
 var React = require('react');
 var ReactDOM = require('react-dom');
 var PropTypes = require('prop-types');
@@ -71,7 +64,7 @@ class VelocityComponent extends React.Component {
   }
 
   componentWillUpdate(newProps, newState) {
-    if (!_.isEqual(newProps.animation, this.props.animation)) {
+    if (JSON.stringify(newProps.animation) !== JSON.stringify(this.props.animation)) {
       if (newProps.interruptBehavior === 'stop') {
         this._stopAnimation();
       } else if (newProps.interruptBehavior === 'finish') {
@@ -110,7 +103,13 @@ class VelocityComponent extends React.Component {
     }
 
     // Delegate all props except for the ones that we have specified as our own via propTypes.
-    var opts = _.omit(this.props, _.keys(VelocityComponent.propTypes));
+    var opts = {};
+    Object.keys(this.props).forEach(function(key) {
+      if (VelocityComponent.propTypes[key]) return;
+
+      opts[key] = this.props[key];
+    });
+
     Velocity(this._getDOMTarget(), this.props.animation, opts);
   }
 
@@ -155,7 +154,7 @@ class VelocityComponent extends React.Component {
   // completion handlers and associated react objects. This crudely clears these references.
   _clearVelocityCache(target) {
     if (target.length) {
-      _.forEach(target, this._clearVelocityCache)
+      Array.prototype.forEach.call(target, this._clearVelocityCache);
     } else {
       Velocity.Utilities.removeData(target, ['velocity', 'fxqueue']);
     }

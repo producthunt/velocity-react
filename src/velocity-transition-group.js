@@ -40,15 +40,28 @@ Statics
 Inspired by https://gist.github.com/tkafka/0d94c6ec94297bb67091
 */
 
-var _ = {
-  each: require('lodash/collection/each'),
-  extend: require('lodash/object/extend'),
-  forEach: require('lodash/collection/forEach'),
-  isEqual: require('lodash/lang/isEqual'),
-  keys: require('lodash/object/keys'),
-  omit: require('lodash/object/omit'),
-  pluck: require('lodash/collection/pluck'),
+var extend = function(target, varArgs) {
+  if (target == null) {
+    throw new TypeError('Cannot convert undefined or null to object');
+  }
+
+  var to = Object(target);
+
+  for (var index = 1; index < arguments.length; index++) {
+    var nextSource = arguments[index];
+
+    if (nextSource != null) { // Skip over if undefined or null
+      for (var nextKey in nextSource) {
+        // Avoid bugs when hasOwnProperty is shadowed
+        if (Object.prototype.hasOwnProperty.call(nextSource, nextKey)) {
+          to[nextKey] = nextSource[nextKey];
+        }
+      }
+    }
+  }
+  return to;
 };
+
 var React = require('react');
 var ReactDOM = require('react-dom');
 var PropTypes = require('prop-types');
@@ -134,11 +147,11 @@ class VelocityTransitionGroup extends React.Component {
       shimCancelAnimationFrame(this._scheduledAnimationFrame);
     }
 
-    _.forEach(this._timers, function(timer) {
+    this._timers.forEach(function(timer) {
       clearTimeout(timer);
     });
 
-    _.forEach(this._scheduledAnimationRunFrames, function(frame) {
+    this._scheduledAnimationRunFrames.forEach(function(frame) {
       shimCancelAnimationFrame(frame);
     });
 
@@ -149,7 +162,15 @@ class VelocityTransitionGroup extends React.Component {
 
   render() {
     // Pass any props that are not our own on into the TransitionGroup delegate.
-    var transitionGroupProps = _.omit(this.props, _.keys(VelocityTransitionGroup.propTypes));
+    var transitionGroupProps = {};
+    var props = this.props;
+
+    Object.keys(props).forEach(function(key) {
+      if (VelocityTransitionGroup.propTypes[key]) return;
+
+      transitionGroupProps[key] = props[key];
+    });
+
 
     // Without our custom childFactory, we just get a default TransitionGroup that doesn't do
     // anything special at all.
@@ -193,9 +214,14 @@ class VelocityTransitionGroup extends React.Component {
 
     // We're not going to start the animation for a tick, so set the node's display to none (or any
     // custom "hide" style provided) so that it doesn't flash in.
-    _.forEach(this.props.enterHideStyle, function (val, key) {
-      Velocity.CSS.setPropertyValue(node, key, val);
-    });
+
+    var enterHideStyle = this.props.enterHideStyle;
+
+    if (enterHideStyle) {
+      Object.keys(enterHideStyle).forEach(function (key) {
+        Velocity.CSS.setPropertyValue(node, key, enterHideStyle[key]);
+      });
+    }
 
     this._entering.push({
       node: node,
@@ -265,7 +291,14 @@ class VelocityTransitionGroup extends React.Component {
     } else {
       animation = (animationProp != null) ? animationProp.animation : null;
       style = (animationProp != null) ? animationProp.style : null;
-      opts = _.omit(animationProp, 'animation', 'style');
+
+      opts = {};
+
+      Object.keys(animationProp).forEach(function (key) {
+        if (key == 'animation' || key == 'style') return;
+
+        opts[key] = animationProp[key];
+      });
     }
 
     return {
@@ -280,8 +313,8 @@ class VelocityTransitionGroup extends React.Component {
       return;
     }
 
-    var nodes = _.pluck(queue, 'node');
-    var doneFns = _.pluck(queue, 'doneFn');
+    var nodes = queue.map(function(item) { return item.node; });
+    var doneFns = queue.map(function(item) { return item.doneFn; });
 
     var parsedAnimation = this._parseAnimationProp(animationProp);
     var animation = parsedAnimation.animation;
@@ -297,9 +330,8 @@ class VelocityTransitionGroup extends React.Component {
     // we always run it, regardless of the animation, since it's probably doing something around
     // opacity or positioning that Velocity will not necessarily reset.
     if (entering) {
-      if (!_.isEqual(this.props.enterShowStyle, {display: ''})
-        || !(/^(fade|slide)/.test(animation) || /In$/.test(animation))) {
-        style = _.extend({}, this.props.enterShowStyle, style);
+      if (JSON.stringify(this.props.enterShowStyle) !== JSON.stringify({display: ''}) || !(/^(fade|slide)/.test(animation) || /In$/.test(animation))) {
+        style = extend({}, this.props.enterShowStyle, style);
       }
     }
 
@@ -308,8 +340,8 @@ class VelocityTransitionGroup extends React.Component {
     // cases that you need to support your static styles being visible on the element before
     // the animation begins.
     if (style != null) {
-      _.each(style, function (value, key) {
-        Velocity.hook(nodes, key, value);
+      Object.keys(style).forEach(function (key) {
+        Velocity.hook(nodes, key, style[key]);
       });
     }
 
@@ -356,7 +388,7 @@ class VelocityTransitionGroup extends React.Component {
         this._scheduledAnimationRunFrames.splice(idx, 1);
       }
 
-      Velocity(nodes, animation, _.extend({}, opts, {
+      Velocity(nodes, animation, extend({}, opts, {
         complete: combinedCompleteFn,
       }));
     });
@@ -368,11 +400,11 @@ class VelocityTransitionGroup extends React.Component {
     var parsedAnimation = this._parseAnimationProp(animationProp);
     var animation = parsedAnimation.animation;
     var style = parsedAnimation.style;
-    var opts = _.extend({}, parsedAnimation.opts, overrideOpts);
+    var opts = extend({}, parsedAnimation.opts, overrideOpts);
 
     if (style != null) {
-      _.each(style, function (value, key) {
-        Velocity.hook(node, key, value);
+      Object.keys(style).forEach(function (key) {
+        Velocity.hook(node, key, style[key]);
       });
     }
 
